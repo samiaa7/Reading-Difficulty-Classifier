@@ -40,4 +40,5 @@ emotion_classifier/
 - `prediction_scatter.png`   — True vs predicted emotional load
 - `residuals.png`            — Residual analysis
 
-
+# Dataset:
+https://github.com/louismartin/dress-data/tree/master/data-simplification/wikilarge
