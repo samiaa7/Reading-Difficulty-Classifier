@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reading Difficulty Classifier</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#ffffff; --bg2:#f6f5f2; --bg3:#eeecea;
+  --text:#181816; --text2:#686864;
+  --border:rgba(0,0,0,0.09); --border2:rgba(0,0,0,0.18);
+  --radius:8px; --radius-lg:14px;
+  --purple:#534AB7; --purple-dk:#3C3489; --purple-lt:#EEEDFE;
+  --teal:#0F6E56; --red:#E24B4A; --red-bg:#FCEBEB;
+  --green:#22C55E; --green-bg:#EAF3DE; --green-text:#3B6D11;
+  --amber:#F59E0B; --amber-bg:#FAEEDA; --amber-text:#854F0B;
+  --blue:#3B82F6; --blue-bg:#EFF6FF;
+  --page:#F0EDE8;
+}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#1e1e1c;--bg2:#282826;--bg3:#323230;--text:#f0ede8;--text2:#9a9994;
+    --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.15);
+    --purple-lt:#2a2660;--red-bg:#3a1414;--green-bg:#1a2e10;--green-text:#97C459;
+    --amber-bg:#2e1e08;--amber-text:#FAC775;--blue-bg:#172042;--page:#141412;}
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Lexend',system-ui,sans-serif;background:var(--page);
+     color:var(--text);min-height:100vh;padding:2rem 1rem 5rem;font-size:15px;line-height:1.6}
+.wrap{max-width:960px;margin:0 auto}
+.logo{font-size:26px;font-weight:600;margin-bottom:5px}
+.logo span{color:var(--purple)}
+.tagline{font-size:13px;color:var(--text2);margin-bottom:2rem;max-width:680px}
+.card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;margin-bottom:1.25rem}
+.section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--text2);margin-bottom:10px}
+textarea{width:100%;min-height:120px;resize:vertical;font-family:'Lexend',sans-serif;
+  font-size:14px;line-height:1.7;padding:12px 14px;border-radius:var(--radius);
+  border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);outline:none;transition:border-color .15s}
+textarea:focus{border-color:var(--purple)}
+textarea::placeholder{color:var(--text2)}
+.btn-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+button{padding:8px 16px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;
+  border:0.5px solid var(--border2);background:var(--bg);color:var(--text);font-family:'Lexend',sans-serif;transition:background .15s,transform .1s}
+button:hover{background:var(--bg2)}
+button:active{transform:scale(.97)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--purple);color:#fff;border-color:var(--purple)}
+button.primary:hover{background:var(--purple-dk)}
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;margin-right:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error{background:var(--red-bg);color:#A32D2D;border:0.5px solid var(--red);
+  border-radius:var(--radius);padding:10px 14px;font-size:13px;margin-bottom:1rem;display:none}
+.hidden{display:none}
+.divider{height:0.5px;background:var(--border);margin:1.25rem 0}
+
+/* ── Two-column results layout ── */
+.results-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+@media(max-width:640px){.results-grid{grid-template-columns:1fr}}
+
+/* ── Difficulty badge ── */
+.diff-badge{display:inline-block;padding:6px 18px;border-radius:24px;font-size:15px;font-weight:600;margin-bottom:10px}
+.diff-0{background:var(--green-bg);color:var(--green-text)}
+.diff-1{background:var(--blue-bg);color:#1D4ED8}
+.diff-2{background:var(--amber-bg);color:var(--amber-text)}
+.diff-3{background:var(--red-bg);color:#A32D2D}
+
+/* ── Probability bars ── */
+.prob-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px}
+.prob-label{width:72px;color:var(--text2);flex-shrink:0}
+.prob-track{flex:1;background:var(--bg3);border-radius:4px;height:8px;overflow:hidden}
+.prob-fill{height:100%;border-radius:4px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.prob-pct{width:36px;text-align:right;color:var(--text2)}
+
+/* ── Emotional load gauge ── */
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;padding:1rem 0}
+.gauge-label{font-size:18px;font-weight:600;margin-top:8px}
+.gauge-desc{font-size:12px;color:var(--text2);text-align:center;max-width:200px;margin-top:4px}
+.gauge-score{font-size:13px;color:var(--text2);margin-top:2px}
+
+/* ── Feature table ── */
+.feat-table{width:100%;border-collapse:collapse;font-size:12px}
+.feat-table th{text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--text2);padding:6px 8px;border-bottom:0.5px solid var(--border2)}
+.feat-table td{padding:5px 8px;border-bottom:0.5px solid var(--border)}
+.feat-table tr:last-child td{border-bottom:none}
+.feat-bar{display:inline-block;height:5px;border-radius:3px;background:var(--purple);vertical-align:middle;margin-right:5px}
+.group-header{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--purple);padding:8px 8px 4px;background:var(--purple-lt);border-radius:4px;margin:6px 0 4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>Reading Difficulty Classifier</div>
+  <p class="tagline">
+    Paste any text to classify its reading difficulty and predict the emotional load
+    it places on a struggling reader
+  </p>
+
+  <div class="card">
+    <div class="section-label">Input text</div>
+    <textarea id="inputText" placeholder="Paste a passage — a textbook paragraph, article, or story…"></textarea>
+    <div class="btn-row">
+      <button class="primary" id="classifyBtn" onclick="runClassify()">Classify text</button>
+      <button onclick="loadSample('easy')">Generate Easy sample</button>
+      <button onclick="loadSample('hard')">Generate Hard sample</button>
+      <button onclick="resetAll()">Clear all</button>
+    </div>
+  </div>
+
+  <div class="error" id="errorBanner"></div>
+
+  <div id="results" class="hidden">
+    <div class="results-grid">
+
+
+      <div class="card">
+        <div class="section-label">Reading difficulty</div>
+        <div id="diffBadge"></div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px" id="diffConf"></div>
+        <div id="probBars"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Emotional load</div>
+        <div class="gauge-wrap">
+          <canvas id="gaugeCanvas" width="200" height="120"></canvas>
+          <div class="gauge-label" id="emoLabel"></div>
+          <div class="gauge-score" id="emoScore"></div>
+          <div class="gauge-desc" id="emoDesc"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Feature breakdown</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem" id="featureGrid"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">Feature radar — normalised 0–1 per group</div>
+      <div style="display:flex;justify-content:center">
+        <canvas id="radarCanvas" width="420" height="380"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "http://localhost:8002";
+const DIFF_COLORS = ["#22C55E","#3B82F6","#F59E0B","#E24B4A"];
+const DIFF_BG     = ["#EAF3DE","#EFF6FF","#FAEEDA","#FCEBEB"];
+const DIFF_TEXT   = ["#3B6D11","#1D4ED8","#854F0B","#A32D2D"];
+
+const SAMPLES = {
+  easy: "The cat sat on the mat. Dogs like to play in the park. The sun is bright and warm. She went to the store to buy some milk. He reads books every day.",
+  hard: "The implementation of evidence-based phonological interventions necessitates systematic evaluation of neurobiological correlates. Longitudinal cohort studies consistently demonstrate that early identification of phonemic awareness deficits, in conjunction with multisensory instructional approaches, substantially mitigates the adverse consequences of developmental dyslexia upon academic achievement trajectories."
+};
+
+async function runClassify() {
+  const text = document.getElementById("inputText").value.trim();
+  if (!text) return;
+  setLoading(true); hideError();
+  try {
+    const res = await fetch(`${API}/classify`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ text })
+    });
+    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.detail || `Error ${res.status}`); }
+    const data = await res.json();
+    render(data);
+    document.getElementById("results").classList.remove("hidden");
+  } catch(err) {
+    showError(err.message || "Could not reach backend. Is uvicorn running on port 8002?");
+  } finally { setLoading(false); }
+}
+
+function render(d) {
+  const diff = d.difficulty;
+  const emo  = d.emotional_load;
+  const ci   = diff.class_index;
+
+  // ── Difficulty badge ──
+  document.getElementById("diffBadge").innerHTML =
+    `<span class="diff-badge diff-${ci}">${diff.label}</span>`;
+  document.getElementById("diffConf").textContent =
+    `Confidence: ${(diff.confidence*100).toFixed(1)}%`;
+
+  // ── Probability bars ──
+  document.getElementById("probBars").innerHTML =
+    Object.entries(diff.probabilities).map(([label, prob], i) => `
+      <div class="prob-row">
+        <div class="prob-label">${label}</div>
+        <div class="prob-track">
+          <div class="prob-fill" style="width:${(prob*100).toFixed(1)}%;background:${DIFF_COLORS[i]}"></div>
+        </div>
+        <div class="prob-pct">${(prob*100).toFixed(0)}%</div>
+      </div>`).join("");
+
+  // ── Gauge ──
+  drawGauge(emo.score, emo.color);
+  document.getElementById("emoLabel").textContent = emo.label;
+  document.getElementById("emoLabel").style.color = emo.color;
+  document.getElementById("emoScore").textContent = `Score: ${(emo.score*100).toFixed(0)} / 100`;
+  document.getElementById("emoDesc").textContent  = emo.description;
+
+  // ── Feature grid ──
+  const groups = d.feature_groups;
+  const raw    = d.features_raw;
+  const norm   = d.features_normalised;
+
+  const groupColors = { Readability:"#534AB7", Vocabulary:"#0F6E56", Syntax:"#F59E0B", Cognitive:"#E24B4A" };
+  document.getElementById("featureGrid").innerHTML = Object.entries(groups).map(([grp, feats]) => `
+    <div>
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;
+        color:${groupColors[grp]};margin-bottom:8px;padding:4px 8px;
+        background:${groupColors[grp]}18;border-radius:4px">${grp}</div>
+      <table class="feat-table">
+        <tr><th>Feature</th><th>Value</th><th style="width:80px">Level</th></tr>
+        ${feats.map(f => `
+          <tr>
+            <td style="color:var(--text2)">${fmtName(f)}</td>
+            <td style="font-weight:500">${fmtVal(f, raw[f])}</td>
+            <td><span class="feat-bar" style="width:${Math.round(norm[f]*60)}px;background:${groupColors[grp]}"></span></td>
+          </tr>`).join("")}
+      </table>
+    </div>`).join("");
+
+  // ── Radar ──
+  drawRadar(groups, norm, groupColors);
+}
+
+/* ── Gauge (half-circle arc) ── */
+function drawGauge(score, color) {
+  const canvas = document.getElementById("gaugeCanvas");
+  const ctx    = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const cx = W/2, cy = H - 20, r = 80;
+  const startAngle = Math.PI, endAngle = 0;
+
+  // Background arc
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, startAngle, endAngle);
+  ctx.strokeStyle = "#e5e5e3";
+  ctx.lineWidth   = 16;
+  ctx.lineCap     = "round";
+  ctx.stroke();
+
+  // Value arc
+  const valAngle = Math.PI + score * Math.PI;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, startAngle, valAngle);
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 16;
+  ctx.lineCap     = "round";
+  ctx.stroke();
+
+  // Needle
+  const needleAngle = Math.PI + score * Math.PI;
+  const nx = cx + (r - 8) * Math.cos(needleAngle);
+  const ny = cy + (r - 8) * Math.sin(needleAngle);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(nx, ny);
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 2.5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, 2*Math.PI);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // Labels
+  ctx.fillStyle = "#9a9994";
+  ctx.font      = "11px Lexend, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("Calm", cx - r - 10, cy + 18);
+  ctx.textAlign = "right";
+  ctx.fillText("Frustrated", cx + r + 10, cy + 18);
+}
+
+/* ── Radar chart ── */
+function drawRadar(groups, norm, groupColors) {
+  const canvas = document.getElementById("radarCanvas");
+  const ctx    = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Collect axes: group averages
+  const axes = Object.entries(groups).map(([grp, feats]) => ({
+    label: grp,
+    value: feats.reduce((s,f) => s + (norm[f]||0), 0) / feats.length,
+    color: groupColors[grp],
+  }));
+
+  const n     = axes.length;
+  const cx    = W / 2, cy = H / 2 - 10;
+  const R     = Math.min(W, H) / 2 - 55;
+  const step  = (2 * Math.PI) / n;
+  const start = -Math.PI / 2;
+
+  // Rings
+  for (let ring = 1; ring <= 4; ring++) {
+    const rr = R * ring / 4;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const angle = start + i * step;
+      const px = cx + rr * Math.cos(angle);
+      const py = cy + rr * Math.sin(angle);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = "#e5e5e3";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    // Ring label
+    ctx.fillStyle = "#b0aea8";
+    ctx.font = "9px Lexend, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`${ring*25}%`, cx, cy - rr + 3);
+  }
+
+  // Spokes
+  axes.forEach((_, i) => {
+    const angle = start + i * step;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + R * Math.cos(angle), cy + R * Math.sin(angle));
+    ctx.strokeStyle = "#e5e5e3";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  });
+
+  // Data polygon
+  ctx.beginPath();
+  axes.forEach((ax, i) => {
+    const angle = start + i * step;
+    const r     = R * ax.value;
+    const px    = cx + r * Math.cos(angle);
+    const py    = cy + r * Math.sin(angle);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  });
+  ctx.closePath();
+  ctx.fillStyle   = "rgba(83,74,183,0.18)";
+  ctx.fill();
+  ctx.strokeStyle = "#534AB7";
+  ctx.lineWidth   = 2;
+  ctx.stroke();
+
+  // Points
+  axes.forEach((ax, i) => {
+    const angle = start + i * step;
+    const r     = R * ax.value;
+    const px    = cx + r * Math.cos(angle);
+    const py    = cy + r * Math.sin(angle);
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, 2*Math.PI);
+    ctx.fillStyle = ax.color;
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
+  });
+
+  // Labels
+  axes.forEach((ax, i) => {
+    const angle = start + i * step;
+    const lx    = cx + (R + 32) * Math.cos(angle);
+    const ly    = cy + (R + 32) * Math.sin(angle);
+    ctx.fillStyle  = ax.color;
+    ctx.font       = "12px Lexend, sans-serif";
+    ctx.textAlign  = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(ax.label, lx, ly);
+    ctx.font       = "10px Lexend, sans-serif";
+    ctx.fillStyle  = "#9a9994";
+    ctx.fillText(`${(ax.value*100).toFixed(0)}%`, lx, ly + 14);
+  });
+}
+
+/* ── Helpers ── */
+const NAME_MAP = {
+  flesch_score:"Flesch score", fk_grade:"FK grade", avg_word_len:"Avg word length",
+  avg_sent_len:"Avg sentence length", syllable_density:"Syllable density",
+  rare_word_pct:"Rare word %", type_token_ratio:"Type-token ratio", long_word_pct:"Long word %",
+  noun_ratio:"Noun ratio", verb_ratio:"Verb ratio", adj_ratio:"Adj ratio",
+  passive_voice_count:"Passive voice", negation_count:"Negation density",
+  punct_density:"Punct density", clause_density:"Clause density",
+};
+
+function fmtName(f) { return NAME_MAP[f] || f; }
+function fmtVal(f, v) {
+  if (f === "flesch_score") return v.toFixed(1);
+  if (f === "fk_grade")     return `Gr ${v.toFixed(1)}`;
+  if (f.endsWith("_pct") || f.endsWith("_ratio") || f.endsWith("_density") || f.endsWith("_count"))
+    return `${(v*100).toFixed(1)}%`;
+  return v.toFixed(2);
+}
+
+function setLoading(on) {
+  const btn = document.getElementById("classifyBtn");
+  btn.disabled = on;
+  btn.innerHTML = on ? `<span class="spinner"></span>Classifying…` : "Classify text";
+}
+function showError(msg) {
+  const el = document.getElementById("errorBanner");
+  el.textContent = "⚠ " + msg; el.style.display = "block";
+}
+function hideError() { document.getElementById("errorBanner").style.display = "none"; }
+function resetAll() {
+  document.getElementById("inputText").value = "";
+  document.getElementById("results").classList.add("hidden");
+  hideError();
+}
+function loadSample(type) {
+  document.getElementById("inputText").value = SAMPLES[type];
+  runClassify();
+}
+</script>
+</body>
+</html>
