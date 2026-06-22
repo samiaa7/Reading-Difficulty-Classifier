@@ -40,6 +40,4 @@ emotion_classifier/
 - `prediction_scatter.png`   — True vs predicted emotional load
 - `residuals.png`            — Residual analysis
 
-{ "text": "your text here" }
-```
-Returns difficulty label + confidence + class probabilities + emotional load score + all 15 features normalised for radar display.
+
